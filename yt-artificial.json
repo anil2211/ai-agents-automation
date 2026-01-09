@@ -1,0 +1,176 @@
+{
+  "name": "Free Video Content Autopilot",
+  "nodes": [
+    {
+      "parameters": {
+        "interval": [
+          { "triggerAtHour": 10 }
+        ]
+      },
+      "id": "1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "options": {},
+        "prompt": "Generate 3 creative YouTube Shorts video ideas based on the keyword '{{ $json.keyword }}'. Include title and short description.",
+        "temperature": 0.7,
+        "maxTokens": 150
+      },
+      "id": "2",
+      "name": "Generate Video Idea",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [300, 0]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "sheetId": "={{$env.GOOGLE_SHEET_ID}}",
+        "range": "Sheet1!A:E",
+        "valueInputMode": "RAW",
+        "values": [
+          ["={{$json["title"]}}", "={{$json["date"]}}", "={{$json["caption"]}}", "={{$json["environment"]}}", "Pending"]
+        ]
+      },
+      "id": "3",
+      "name": "Log Idea to Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [600, 0]
+    },
+    {
+      "parameters": {
+        "model": "gpt-3.5-turbo",
+        "options": {},
+        "prompt": "Create a detailed 60-second video prompt for YouTube Shorts based on the idea: '{{ $json.title }}'. Include visuals, music, and captions.",
+        "temperature": 0.7,
+        "maxTokens": 200
+      },
+      "id": "4",
+      "name": "Create Video Prompt",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [900, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.FREE_VIDEO_API_ENDPOINT}}",
+        "method": "POST",
+        "jsonParameters": true,
+        "options": {},
+        "bodyJson": {
+          "prompt": "={{$json.prompt}}",
+          "format": "mp4",
+          "resolution": "1080p"
+        }
+      },
+      "id": "5",
+      "name": "Generate Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1200, 0]
+    },
+    {
+      "parameters": {
+        "time": 210000
+      },
+      "id": "6",
+      "name": "Wait 3.5 Minutes",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [1500, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.video_api_response.url}}",
+        "responseFormat": "file"
+      },
+      "id": "7",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [1800, 0]
+    },
+    {
+      "parameters": {
+        "operation": "upload",
+        "binaryPropertyName": "data",
+        "fileName": "={{$json["title"]}}.mp4",
+        "folderId": "={{$env.GOOGLE_DRIVE_FOLDER_ID}}"
+      },
+      "id": "8",
+      "name": "Upload to Google Drive",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 1,
+      "position": [2100, 0]
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{$json["title"]}}",
+        "description": "={{$json["description"]}}",
+        "tags": ["AI","Tech"],
+        "privacyStatus": "public",
+        "binaryData": "data"
+      },
+      "id": "9",
+      "name": "Upload to YouTube",
+      "type": "n8n-nodes-base.youtube",
+      "typeVersion": 1,
+      "position": [2400, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v15.0/{{ $env.IG_USER_ID }}/media",
+        "method": "POST",
+        "jsonParameters": true,
+        "bodyJson": {
+          "video_url": "={{$json.video_drive_url}}",
+          "caption": "={{$json.title}} #AI #Tech",
+          "media_type": "VIDEO"
+        }
+      },
+      "id": "10",
+      "name": "Upload to Instagram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [2700, 0]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "sheetId": "={{$env.GOOGLE_SHEET_ID}}",
+        "range": "Sheet1!A:E",
+        "keyColumn": 1,
+        "updateValues": [
+          {"column": 5, "value": "Uploaded"},
+          {"column": 6, "value": "={{$json.youtube_link}}"},
+          {"column": 7, "value": "={{$json.instagram_link}}"},
+          {"column": 8, "value": "={{$json.date}}"}
+        ]
+      },
+      "id": "11",
+      "name": "Update Google Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 1,
+      "position": [3000, 0]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {"main": [[{"node": "Generate Video Idea", "type": "main", "index": 0}]]},
+    "Generate Video Idea": {"main": [[{"node": "Log Idea to Google Sheet", "type": "main", "index": 0}, {"node": "Create Video Prompt", "type": "main", "index": 0}]]},
+    "Create Video Prompt": {"main": [[{"node": "Generate Video", "type": "main", "index": 0}]]},
+    "Generate Video": {"main": [[{"node": "Wait 3.5 Minutes", "type": "main", "index": 0}]]},
+    "Wait 3.5 Minutes": {"main": [[{"node": "Download Video", "type": "main", "index": 0}]]},
+    "Download Video": {"main": [[{"node": "Upload to Google Drive", "type": "main", "index": 0}]]},
+    "Upload to Google Drive": {"main": [[{"node": "Upload to YouTube", "type": "main", "index": 0}, {"node": "Upload to Instagram", "type": "main", "index": 0}]]},
+    "Upload to YouTube": {"main": [[{"node": "Update Google Sheet", "type": "main", "index": 0}]]},
+    "Upload to Instagram": {"main": [[{"node": "Update Google Sheet", "type": "main", "index": 0}]]}
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "name": "YoutubeAgent_Full",
+  "nodes": [
+    {
+      "parameters": {
+        "model": "qwen/qwen-2.5-72b-instruct:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [320, -360],
+      "id": "fe0eb227-7a7c-4842-b191-2ab2cb250d5a",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "lmQsStnMAVBZiYSe",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "videos",
+        "options": { "destinationFieldName": "videos" }
+      },
+      "id": "c57b9e9a-5992-4f48-a2ab-f068fdeecb33",
+      "name": "Split Videos",
+      "type": "n8n-nodes-base.itemLists",
+      "position": [1740, -640],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.videos.video_files[0].link }}",
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      },
+      "id": "bc1753e0-3ca4-492f-959b-926322a9b560",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1960, -640],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "formTitle": "Prompt",
+        "formFields": { "values": [{ "fieldLabel": "Enter your prompt here", "requiredField": true }] },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [-220, -580],
+      "id": "fa16edbc-d586-4d80-a85e-78e6ceabbd65",
+      "name": "Write video idea",
+      "webhookId": "0341d4ce-4b42-4389-9401-cf705ca0b0ed"
+    },
+    {
+      "parameters": { "command": "=mkdir {{ $execution.id }}" },
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [0, -580],
+      "id": "8678003d-f270-4752-96a5-5d2d8aae042d",
+      "name": "Create Folder"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a short, exciting script (~50-70 words) for a instagram reel. Keep only script no extra words. Here is the topic: {{ $json['Enter your prompt here'] }}.",
+        "messages": { "messageValues": [{ "message": "You are a instagram reel script writer." }] }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [240, -580],
+      "id": "5a44c441-db30-4a18-957f-d515a3d77670",
+      "name": "Write Script"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Understand the below script and give me short prompt for generating image only. Do not use special characters, only spaces: {{ $json.text }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [1060, -1100],
+      "id": "95c2dd4d-403a-424c-a2c1-3ebdabcd5847",
+      "name": "Write image/video prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent",
+        "sendQuery": true,
+        "queryParameters": [{ "name": "key", "value": "=AIzaSyCbDNGaAtoE_XZv3rGu-INoCeQvnzuoXBY" }],
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"contents\": [{ \"parts\": [{ \"text\": \"create image from below data: {{ $json.text }}\" }] }], \"generationConfig\": { \"responseModalities\": [\"TEXT\", \"IMAGE\"] } }"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1480, -1100],
+      "id": "35a72d53-3ac6-4661-8c3f-f7d768a7b9e6",
+      "name": "Create AI Image"
+    },
+    {
+      "parameters": { "operation": "toBinary", "sourceProperty": "candidates[0].content.parts[0].inlineData.data" },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1740, -1100],
+      "id": "b1eb01d7-9706-4d38-86e7-220846123629",
+      "name": "Get AI Image"
+    },
+    {
+      "parameters": { "operation": "write", "fileName": "=./{{ $execution.id }}/image{{ $execution.id }}.png" },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [1960, -1100],
+      "id": "f6d770d4-8949-4a9c-a60f-aaaff55239d8",
+      "name": "Save AI Image"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://hysts-zeroscope-v2.hf.space/gradio_api/call/run",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"data\": [\"{{ $json.text }}\", 0, 24, 10] }"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1480, -860],
+      "id": "1b0f7ff4-34de-40f0-89b3-c3d456b2c0e4",
+      "name": "Creat AI Video"
+    },
+    {
+      "parameters": {
+        "url": "=https://hysts-zeroscope-v2.hf.space/gradio_api/call/run/{{ $json.event_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, -860],
+      "id": "c144efd5-48c8-4395-9932-d066648b9aa0",
+      "name": "Get AI Video"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputString = $input.first().json.data;\nconst jsonPart = inputString.split('data: ')[1].trim();\nconst parsedData = JSON.parse(jsonPart);\nconst path = parsedData[0].video.path;\nreturn {path};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, -860],
+      "id": "10cd0e5f-dc5d-4bb6-9f14-4fff82649530",
+      "name": "Get URL"
+    },
+    {
+      "parameters": {
+        "url": "=https://hysts-zeroscope-v2.hf.space/gradio_api/file={{ $json.path }}",
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      },
+      "id": "f167c91e-920c-4fc3-93b3-3dee60c4fd4f",
+      "name": "Download AI Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2220, -860],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": { "operation": "write", "fileName": "=./{{ $execution.id }}/aiVideo{{ $execution.id }}.mp4" },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [2440, -860],
+      "id": "4830b8bc-6e73-4a3d-b77c-1fcf02d276d2",
+      "name": "Save AI Video"
+    },
+    {
+      "parameters": {
+        "url": "https://api.pexels.com/videos/search",
+        "sendQuery": true,
+        "queryParameters": [
+          { "name": "query", "value": "={{ $json.text }}" },
+          { "name": "per_page", "value": "3" }
+        ],
+        "sendHeaders": true,
+        "headerParameters": [
+          { "name": "Authorization", "value": "DLeEuwTJ2SL2wxRiQY6J8dEKPteO0cvzeq3GfUlcDQTJMqtPikVt8woa" }
+        ]
+      },
+      "id": "3f9691ca-2fab-4178-b1e7-3778518022cd",
+      "name": "Search Videos on Pexel",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1480, -640],
+      "typeVersion": 4.2
+    }
+  ],
+  "connections": {
+    "Write video idea": { "main": [[{ "node": "Create Folder", "type": "main", "index": 0 }]] },
+    "Create Folder": { "main": [[{ "node": "Write Script", "type": "main", "index": 0 }]] },
+    "Write Script": { "main": [[
+      { "node": "Write image/video prompt", "type": "main", "index": 0 },
+      { "node": "Create Script", "type": "main", "index": 0 },
+      { "node": "Create speech", "type": "main", "index": 0 },
+      { "node": "Create Caption", "type": "main", "index": 0 }
+    ]]},
+    "Write image/video prompt": { "main": [[
+      { "node": "Create AI Image", "type": "main", "index": 0 },
+      { "node": "Creat AI Video", "type": "main", "index": 0 },
+      { "node": "Search Videos on Pexel", "type": "main", "index": 0 }
+    ]]},
+    "Create AI Image": { "main": [[{ "node": "Get AI Image", "type": "main", "index": 0 }]] },
+    "Get AI Image": { "main": [[{ "node": "Save AI Image", "type": "main", "index": 0 }]] },
+    "Creat AI Video": { "main": [[{ "node": "Get AI Video", "type": "main", "index": 0 }]] },
+    "Get AI Video": { "main": [[{ "node": "Get URL", "type": "main", "index": 0 }]] },
+    "Get URL": { "main": [[{ "node": "Download AI Video", "type": "main", "index": 0 }]] },
+    "Download AI Video": { "main": [[{ "node": "Save AI Video", "type": "main", "index": 0 }]] },
+    "Search Videos on Pexel": { "main": [[{ "node": "Split Videos", "type": "main", "index": 0 }]] },
+    "Split Videos": { "main": [[{ "node": "Download Video", "type": "main", "index": 0 }]] },
+    "Download Video": { "main": [[{ "node": "Save Video", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none",
+    "saveManualExecutions": false
+  }
+}

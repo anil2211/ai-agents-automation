@@ -1,0 +1,157 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "model": "qwen/qwen-2.5-72b-instruct:free",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [-624, 912],
+      "id": "91417def-6229-4529-8e30-afeed25e0728",
+      "name": "OpenRouter Chat Model"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "videos",
+        "options": {
+          "destinationFieldName": "videos"
+        }
+      },
+      "id": "77ba3a9b-e512-4c4e-8d51-45810d607d93",
+      "name": "Split Videos",
+      "type": "n8n-nodes-base.itemLists",
+      "position": [800, 624],
+      "typeVersion": 3.1
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.videos.video_files[0].link }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "e6770eb7-503d-4852-8e38-c45dfadce5ca",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1024, 624],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "content": "## Local Setup for Script, Speech, and Caption\n",
+        "height": 760,
+        "width": 800,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [0, 912],
+      "typeVersion": 1,
+      "id": "85d9655d-f0a7-4e34-9017-5f1688e502ca",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## API setup for AI Images, AI Videos, and Videos",
+        "height": 860,
+        "width": 1760,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [0, 0],
+      "typeVersion": 1,
+      "id": "21a0d174-f428-4475-a8a0-916aa68c7996",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "formTitle": "Prompt",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Enter your prompt here",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [-1168, 688],
+      "id": "d2fe1b2f-615a-4ea1-ad78-596646b34afa",
+      "name": "Write video idea",
+      "webhookId": "0341d4ce-4b42-4389-9401-cf705ca0b0ed"
+    },
+    {
+      "parameters": {
+        "command": "mkdir -p ./{{ $execution.id }}"
+      },
+      "type": "n8n-nodes-base.runCommand",
+      "typeVersion": 1,
+      "position": [-944, 688],
+      "id": "6bdee566-da75-4cae-95ac-2f07f132fa3f",
+      "name": "Create Folder"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a short, exciting script (~50-70 words) for an Instagram reel. Keep only script, no extra words. Here is the topic: {{ $json['Enter your prompt here'] }}.",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "You are an Instagram reel script writer."
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [-704, 688],
+      "id": "d194c73a-ecba-45cc-96b3-0531145e5340",
+      "name": "Write Script"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Understand the below script and give me short prompt for generating image only. Do not use special characters, only spaces: {{ $json.text }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.6,
+      "position": [128, 160],
+      "id": "407b145e-5f49-40e5-b271-19b665c4b73d",
+      "name": "Write image/video prompt"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "=YOUR_GOOGLE_API_KEY"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"create image from below data: {{ $json.text }}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"responseModalities\": [\"TEXT\",\"IMAGE\"]\n  }\n}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [544, 160],
+      "id": "5c3da327-b3f8-46be-af15-6798e93af97e",
+      "name": "Create AI Image"
+    }
+  ],
+  "connections": {
+    "Write video idea": { "main": [[{"node": "Create Folder","type":"main","index":0},{"node":"Write Script","type":"main","index":0}]] },
+    "Write Script": { "main": [[{"node":"Write image/video prompt","type":"main","index":0}]] }
+  }
+}
